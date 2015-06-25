@@ -27,8 +27,8 @@ A simple example creating a VPC containing an RDS could look like this::
    from aloisius import Stack
 
    # I keep my troposphere templates as modules in a package.
-   from templates.vpc import template_body as template_vpc
-   from templates.rds import template_body as template_rds
+   from templates.vpc import template as template_vpc
+   from templates.rds import template as template_rds
 
 
    # I normally put some constants and helper functions here.
