@@ -3,6 +3,8 @@
 #
 # See LICENSE file for full license.
 
+from concurrent.futures import ThreadPoolExecutor
+import multiprocessing
 import time
 
 from boto3.session import Session
@@ -14,13 +16,12 @@ from .exception import StackException
 
 @export
 class Stack(object):
-
     # Treat template_body as a pathname if it starts with this prefix.
     file_prefix = 'file://'
 
     # The time between stack status checks.
     sleep_seconds = 5
-    
+        
     create_stack_params = ['StackName', 'TemplateBody', 'TemplateURL',
                            'Parameters', 'DisableRollback', 'TimeoutInMinutes',
                            'NotificationARNs', 'Capabilities', 'OnFailure',
@@ -31,8 +32,24 @@ class Stack(object):
                            'StackPolicyDuringUpdateURL', 'Parameters',
                            'Capabilities', 'StackPolicyBody', 'StackPolicyURL',
                            'NotificationARNs']
-    
+
+    _executor = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())
+        
     def __init__(self, **kwargs):
+        self._future = self._executor.submit(self._execute, **kwargs)
+
+    def __del__(self):
+        self._future.result()
+        
+    def __getattr__(self, name):
+        if name == 'outputs':
+            self.outputs = self._future.result()
+            return self.outputs
+        else:
+            msg = '{!r} object has no attribute {!r}'
+            raise AttributeError(msg.format(self.__class__, name))
+            
+    def _execute(self, **kwargs):
         # Like `aws-cli cloudformation create-stack` read the template
         # from a local file if template_body starts with 'file://' .
         if 'TemplateBody' in kwargs:
@@ -59,10 +76,10 @@ class Stack(object):
 
         # Get the CloudFormation service resource.
         self._cfn = session.resource('cloudformation')
-        
+            
         # Wait until no stack operation is in progress.
         self._wait_until_ready()
-        
+            
         # Execute the stack operation necessary to establish the target state.
         stack_operation = self._establish_target_state()
 
@@ -71,8 +88,10 @@ class Stack(object):
 
         # Set or update the stack outputs if necessary.
         if stack_operation != 'DELETE' and stack.outputs:
-            self.outputs = {output['OutputKey']: output['OutputValue']
-                            for output in stack.outputs}
+            return {output['OutputKey']: output['OutputValue']
+                    for output in stack.outputs}
+        else:
+            return {}
             
     def _wait_until_ready(self):
         while True:
@@ -116,10 +135,20 @@ class Stack(object):
             time.sleep(self.sleep_seconds)
 
     def _describe_stack(self):
-        stacks = [stack for stack in self._cfn.stacks.all()
-                  if stack.stack_name == self._kwargs['StackName']]
-        return stacks[0] if stacks else None
-    
+        try:
+            stacks = list(self._invoke(self._cfn.stacks.filter,
+                                       StackName=self._kwargs['StackName']))
+            return stacks[0]
+        except ClientError as err:
+            error_code = err.response['Error']['Code']
+            error_message = err.response['Error']['Message']
+            if error_code == 'ValidationError' and \
+               error_message == 'Stack with id {} does not exist'.format(
+                   self._kwargs['StackName']):
+                return None
+            else:
+                raise err
+        
     def _create(self):
         stack = self._describe_stack()
         if stack and stack.stack_status != 'ROLLBACK_COMPLETE':
@@ -127,7 +156,7 @@ class Stack(object):
         else:
             kwargs = {key: val for key, val in self._kwargs.items()
                       if key in self.create_stack_params}
-            self._cfn.create_stack(**kwargs)
+            self._invoke(self._cfn.create_stack, **kwargs)
             return True
 
     def _update(self):
@@ -135,7 +164,7 @@ class Stack(object):
         kwargs = {key: val for key, val in self._kwargs.items()
                   if key in self.update_stack_params}
         try:
-            stack.update(**kwargs)
+            self._invoke(stack.update, **kwargs)
             return True
         except ClientError as err:
             error_code = err.response['Error']['Code']
@@ -148,5 +177,16 @@ class Stack(object):
 
     def _delete(self):
         stack = self._describe_stack()
-        if stack: stack.delete()
+        if stack: self._invoke(stack.delete)
 
+    def _invoke(self, func, *args, **kwargs):
+        retries = 0
+        while True:
+            try:
+                return func(*args, **kwargs)
+            except ClientError as err:
+                error_code = err.response['Error']['Code']
+                if error_code != 'Throttling' or retries == 3:
+                    raise err
+            time.sleep(5 * (2 ** retries))
+            retries += 1
