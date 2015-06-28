@@ -22,6 +22,8 @@ class Stack(object):
 
     # The time between stack status checks.
     sleep_seconds = 5
+
+    max_retries = 3
         
     create_stack_params = ['StackName', 'TemplateBody', 'TemplateURL',
                            'Parameters', 'DisableRollback', 'TimeoutInMinutes',
@@ -43,18 +45,13 @@ class Stack(object):
 
     def __del__(self):
         self._future.result()
-        
-    def __getattr__(self, name):
-        if name == 'outputs':
-            return FutureDict(self._future)
-        else:
-            msg = '{!r} object has no attribute {!r}'
-            raise AttributeError(msg.format(self.__class__, name))
             
     def _execute(self, **kwargs):
+        kwargs['TargetState'] = kwargs['TargetState'] or 'present'
+
         # Like `aws-cli cloudformation create-stack` read the template
         # from a local file if template_body starts with 'file://' .
-        if 'TemplateBody' in kwargs:
+        if kwargs['TargetState'] == 'present' and 'TemplateBody' in kwargs:
             template_body = kwargs['TemplateBody']
             if template_body.startswith(self.file_prefix):
                 filepath = template_body[len(self.file_prefix):]
@@ -62,7 +59,7 @@ class Stack(object):
                     kwargs['TemplateBody'] = fp.read()
 
         # Transform the parameter dict into a list of Parameter structures.
-        if 'Parameters' in kwargs:
+        if kwargs['TargetState'] == 'present' and 'Parameters' in kwargs:
             kwargs['Parameters'] = [{
                 'ParameterKey': key,
                 'ParameterValue': str(val.result() if isinstance(val, Future)
@@ -189,9 +186,9 @@ class Stack(object):
                 return func(*args, **kwargs)
             except ClientError as err:
                 error_code = err.response['Error']['Code']
-                if error_code != 'Throttling' or retries == 3:
+                if error_code != 'Throttling' or retries == self.max_retries:
                     raise err
-            time.sleep(5 * (2 ** retries))
+            time.sleep(self.sleep_seconds * (2 ** retries))
             retries += 1
 
 
@@ -200,6 +197,8 @@ class FutureOutputs(object):
         self._stack = stack
 
     def __getitem__(self, key):
-        if self._stack._outputs is None:
-            self._stack._outputs = self._stack._future.result()
-        return self._stack._outputs[key]
+        def output(self):
+            if self._stack._outputs is None:
+                self._stack._outputs = self._stack._future.result()
+            return self._stack._outputs[key]
+        return self._stack._executor.submit(output, self)
