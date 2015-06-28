@@ -67,5 +67,5 @@ Why you should use aloisius
 ===========================
 
 - You could find some bugs and help to make it better.
-- Integrates nicely with troposphere.
-- No YAML.
+- Parallel stack creation/deletion.
+- Integrates nicely with troposphere: No JSON and no YAML.
