@@ -3,6 +3,7 @@
 #
 # See LICENSE file for full license.
 
+from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
 import time
@@ -36,6 +37,8 @@ class Stack(object):
     _executor = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())
         
     def __init__(self, **kwargs):
+        self._outputs = None
+        self.outputs = FutureOutputs(self)
         self._future = self._executor.submit(self._execute, **kwargs)
 
     def __del__(self):
@@ -43,8 +46,7 @@ class Stack(object):
         
     def __getattr__(self, name):
         if name == 'outputs':
-            self.outputs = self._future.result()
-            return self.outputs
+            return FutureDict(self._future)
         else:
             msg = '{!r} object has no attribute {!r}'
             raise AttributeError(msg.format(self.__class__, name))
@@ -63,7 +65,8 @@ class Stack(object):
         if 'Parameters' in kwargs:
             kwargs['Parameters'] = [{
                 'ParameterKey': key,
-                'ParameterValue': str(val), # Parameters must be strings.
+                'ParameterValue': str(val.result() if isinstance(val, Future)
+                                      else val),
                 'UsePreviousValue': False # Always use the current value.
             } for key, val in kwargs['Parameters'].items()]
 
@@ -190,3 +193,13 @@ class Stack(object):
                     raise err
             time.sleep(5 * (2 ** retries))
             retries += 1
+
+
+class FutureOutputs(object):
+    def __init__(self, stack):
+        self._stack = stack
+
+    def __getitem__(self, key):
+        if self._stack._outputs is None:
+            self._stack._outputs = self._stack._future.result()
+        return self._stack._outputs[key]
