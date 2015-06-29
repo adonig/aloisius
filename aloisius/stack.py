@@ -39,7 +39,6 @@ class Stack(object):
     _executor = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())
         
     def __init__(self, **kwargs):
-        self._outputs = None
         self.outputs = FutureOutputs(self)
         self._future = self._executor.submit(self._execute, **kwargs)
 
@@ -86,10 +85,9 @@ class Stack(object):
         # Wait until the stack operation is complete or has failed.
         stack = self._wait_until_done(stack_operation)
 
-        # Set or update the stack outputs if necessary.
+        # Return the stack outputs.
         if stack_operation != 'DELETE' and stack.outputs:
-            return {output['OutputKey']: output['OutputValue']
-                    for output in stack.outputs}
+            return {o['OutputKey']: o['OutputValue'] for o in stack.outputs}
         else:
             return {}
             
@@ -191,14 +189,11 @@ class Stack(object):
             time.sleep(self.sleep_seconds * (2 ** retries))
             retries += 1
 
-
+    
 class FutureOutputs(object):
     def __init__(self, stack):
         self._stack = stack
 
     def __getitem__(self, key):
-        def output(self):
-            if self._stack._outputs is None:
-                self._stack._outputs = self._stack._future.result()
-            return self._stack._outputs[key]
-        return self._stack._executor.submit(output, self)
+        return self._stack._executor.submit(
+            lambda: self._stack._future.result()[key])
