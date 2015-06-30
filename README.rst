@@ -23,7 +23,7 @@ Installation
 aloisius can be installed using the pip distribution system for Python by
 issuing::
 
-  $ pip install awacs
+  $ pip install aloisius
 
 Alternatively, you can run use setup.py to install by cloning this repository
 and issuing::
