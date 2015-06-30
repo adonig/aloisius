@@ -1,3 +1,6 @@
+## 0.3 (2015-06-30
+- Publish aloisius to PyPI
+
 ## 0.2.1 (2015-06-29)
 - Increase parallelism by using FutureOutputs
 

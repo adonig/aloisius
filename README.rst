@@ -60,7 +60,6 @@ Why you shouldn't use aloisius
 ==============================
 
 - It's not tested. I simply use it myself. There are probably many bugs.
-- It's not on PyPI.
 - There's not much documentation (but there are comments in the code).
 
 Why you should use aloisius
