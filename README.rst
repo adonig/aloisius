@@ -17,6 +17,19 @@ License
 
 The BSD 2-Clause License: http://opensource.org/licenses/BSD-2-Clause
 
+Installation
+============
+
+aloisius can be installed using the pip distribution system for Python by
+issuing::
+
+  $ pip install awacs
+
+Alternatively, you can run use setup.py to install by cloning this repository
+and issuing::
+
+  # python setup.py install
+
 Examples
 ========
 
