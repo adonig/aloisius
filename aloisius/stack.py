@@ -24,7 +24,7 @@ class Stack(object):
     sleep_seconds = 5
 
     max_retries = 3
-        
+
     create_stack_params = ['StackName', 'TemplateBody', 'TemplateURL',
                            'Parameters', 'DisableRollback', 'TimeoutInMinutes',
                            'NotificationARNs', 'Capabilities', 'OnFailure',
@@ -37,14 +37,14 @@ class Stack(object):
                            'NotificationARNs']
 
     _executor = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())
-        
+
     def __init__(self, **kwargs):
         self.outputs = FutureOutputs(self)
         self._future = self._executor.submit(self._execute, **kwargs)
 
     def __del__(self):
         self._future.result()
-            
+
     def _execute(self, **kwargs):
         kwargs['TargetState'] = kwargs['TargetState'] or 'present'
 
@@ -75,10 +75,10 @@ class Stack(object):
 
         # Get the CloudFormation service resource.
         self._cfn = session.resource('cloudformation')
-            
+
         # Wait until no stack operation is in progress.
         self._wait_until_ready()
-            
+
         # Execute the stack operation necessary to establish the target state.
         stack_operation = self._establish_target_state()
 
@@ -90,7 +90,7 @@ class Stack(object):
             return {o['OutputKey']: o['OutputValue'] for o in stack.outputs}
         else:
             return {}
-            
+
     def _wait_until_ready(self):
         while True:
             stack = self._describe_stack()
@@ -107,13 +107,13 @@ class Stack(object):
                 return 'UPDATE'
             else:
                 # The stack does not exist or no update is necessary.
-                return 'CREATE'                
+                return 'CREATE'
         elif target_state == 'absent':
             self._delete()
             return 'DELETE'
         else:
             raise AssertionError('Invalid state {!r}'.format(target_state))
-            
+
     def _wait_until_done(self, stack_operation):
         while True:
             stack = self._describe_stack()
@@ -146,7 +146,7 @@ class Stack(object):
                 return None
             else:
                 raise err
-        
+
     def _create(self):
         stack = self._describe_stack()
         if stack and stack.stack_status != 'ROLLBACK_COMPLETE':
@@ -189,11 +189,24 @@ class Stack(object):
             time.sleep(self.sleep_seconds * (2 ** retries))
             retries += 1
 
-    
+
 class FutureOutputs(object):
     def __init__(self, stack):
         self._stack = stack
+        self._result = None
 
     def __getitem__(self, key):
-        return self._stack._executor.submit(
-            lambda: self._stack._future.result()[key])
+        return self.__get_result__()[key]
+
+    def __get_result__(self):
+        if self._result:
+            return self._result
+        item = self._stack._executor.submit(lambda: self._stack._future.result())
+        self._result = item.result()
+        return self._result
+
+    def __iter__(self):
+        return self.__get_result__().__iter__()
+
+    def iteritems(self):
+        return self.__get_result__().iteritems()
