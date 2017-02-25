@@ -1,30 +1,58 @@
-import unittest
+# Copyright 2017 The contributors. All rights reserved.
+#
+# See LICENSE file for full license.
+
+import pytest
+
 from aloisius.stack import Stack, FutureOutputs
 
 
-# Mock execution for testing purpouses to just return the list of kargs
-class MockStack(Stack):
-    def _execute(self, **kargs):
-        return kargs
+@pytest.fixture
+def outputs():
+    class MockStack(Stack):
+        def _execute(self, **kwargs):
+            return kwargs
+    return FutureOutputs(MockStack(key='value'))
 
 
-class TestFutureOutputs(unittest.TestCase):
+def test_contains(outputs):
+    assert 'key' in outputs
+    assert 'non-key' not in outputs
 
-    def test_dictionary_interface(self):
-        outputs = FutureOutputs(MockStack(key='value'))
-        self.assertEqual(outputs['key'], 'value')
 
-    def test_iterator_interface(self):
-        outputs = FutureOutputs(MockStack(key='value'))
-        for key in outputs:
-            self.assertEqual(key, 'key')
-            self.assertEqual(outputs[key], 'value')
+def test_get(outputs):
+    assert outputs.get('key') == 'value'
+    assert outputs.get('non-key') is None
+    assert outputs.get('non-key', 'value') == 'value'
 
-    def test_iteritems(self):
-        outputs = FutureOutputs(MockStack(key='value'))
-        for key, value in outputs.iteritems():
-            self.assertEqual(key, 'key')
-            self.assertEqual(value, 'value')
 
-if __name__ == '__main__':
-    unittest.main()
+def test_getitem(outputs):
+    assert outputs['key'] == 'value'
+    with pytest.raises(KeyError):
+        outputs['non-key']
+
+
+def test_items(outputs):
+    for key, value in outputs.items():
+        assert key == 'key'
+        assert value == 'value'
+
+
+def test_iter(outputs):
+    for key in outputs:
+        assert key == 'key'
+        assert outputs[key] == 'value'
+
+
+def test_keys(outputs):
+    for key in outputs.keys():
+        assert key == 'key'
+
+
+def test_values(outputs):
+    for value in outputs.values():
+        assert value == 'value'
+
+
+def test_len(outputs):
+    assert len(outputs) == 1

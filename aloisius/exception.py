@@ -1,5 +1,4 @@
-# Copyright (c) 2015, Andreas Donig <andreas@innwiese.de>
-# All rights reserved.
+# Copyright 2017 The contributors. All rights reserved.
 #
 # See LICENSE file for full license.
 

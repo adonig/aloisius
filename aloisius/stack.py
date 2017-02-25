@@ -1,8 +1,8 @@
-# Copyright (c) 2015, Andreas Donig <andreas@innwiese.de>
-# All rights reserved.
+# Copyright 2017 The contributors. All rights reserved.
 #
 # See LICENSE file for full license.
 
+from collections import Mapping
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
@@ -63,7 +63,7 @@ class Stack(object):
                 'ParameterKey': key,
                 'ParameterValue': str(val.result() if isinstance(val, Future)
                                       else val),
-                'UsePreviousValue': False # Always use the current value.
+                'UsePreviousValue': False  # Always use the current value.
             } for key, val in kwargs['Parameters'].items()]
 
         # Store the keyword arguments as member, so we can logically
@@ -175,7 +175,8 @@ class Stack(object):
 
     def _delete(self):
         stack = self._describe_stack()
-        if stack: self._invoke(stack.delete)
+        if stack:
+            self._invoke(stack.delete)
 
     def _invoke(self, func, *args, **kwargs):
         retries = 0
@@ -190,23 +191,22 @@ class Stack(object):
             retries += 1
 
 
-class FutureOutputs(object):
+class FutureOutputs(Mapping):
     def __init__(self, stack):
         self._stack = stack
         self._result = None
 
     def __getitem__(self, key):
-        return self.__get_result__()[key]
-
-    def __get_result__(self):
-        if self._result:
-            return self._result
-        item = self._stack._executor.submit(lambda: self._stack._future.result())
-        self._result = item.result()
-        return self._result
+        return self._get_result()[key]
 
     def __iter__(self):
-        return self.__get_result__().__iter__()
+        return iter(self._get_result())
 
-    def iteritems(self):
-        return self.__get_result__().iteritems()
+    def __len__(self):
+        return len(self._get_result())
+
+    def _get_result(self):
+        if self._result is None:
+            self._result = self._stack._executor.submit(
+                lambda: self._stack._future.result()).result()
+        return self._result
