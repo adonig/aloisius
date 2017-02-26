@@ -1,4 +1,7 @@
-## 0.3 (2015-06-30
+## 0.3.1 (2017-02-26)
+- Make FutureOutputs inherit from collections.Mapping
+
+## 0.3 (2015-06-30)
 - Publish aloisius to PyPI
 
 ## 0.2.1 (2015-06-29)
