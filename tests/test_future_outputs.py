@@ -11,8 +11,8 @@ from aloisius.stack import Stack, FutureOutputs
 def outputs():
     class MockStack(Stack):
         def _execute(self, **kwargs):
-            return kwargs
-    return FutureOutputs(MockStack(key='value'))
+            return {'key': 'value'}
+    return FutureOutputs(MockStack(StackName='name'))
 
 
 def test_contains(outputs):

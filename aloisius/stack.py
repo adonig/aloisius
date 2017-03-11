@@ -5,6 +5,7 @@
 from collections import Mapping
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait
 import multiprocessing
 import time
 
@@ -38,9 +39,24 @@ class Stack(object):
 
     _executor = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())
 
+    _futures = {}
+
+    @classmethod
+    def wait_for_all(self):
+        wait(self._futures.values())
+
+    @classmethod
+    def results(self):
+        self.wait_for_all()
+        results = {}
+        for name, future in self._futures.items():
+            results[name] = future.exception() or future.result()
+        return results
+
     def __init__(self, **kwargs):
         self.outputs = FutureOutputs(self)
         self._future = self._executor.submit(self._execute, **kwargs)
+        self._futures[kwargs['StackName']] = self._future
 
     def __del__(self):
         self._future.result()

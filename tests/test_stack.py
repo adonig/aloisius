@@ -68,3 +68,17 @@ def test_stack_rollback(monkeypatch):
             TemplateBody=json.dumps(dummy_template)
         )
         stack.outputs['VPC']  # Wait for result
+
+
+@mock_cloudformation
+def test_stack_results():
+    Stack._futures = {}  # Cleanup from other runs
+    Stack(
+        StackName='dummy',
+        TargetState='present',
+        RegionName='eu-west-1',
+        TemplateBody=json.dumps(dummy_template)
+    )
+    for name, result in Stack.results().items():
+        assert name == 'dummy'
+        assert result.keys() == ['VPC']
