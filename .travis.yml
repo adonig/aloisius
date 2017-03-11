@@ -14,4 +14,4 @@ python:
 # command to install dependencies
 install: "pip install -e .[dev]"
 # command to run tests
-script: pytest
+script: python -m pytest
