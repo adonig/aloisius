@@ -81,4 +81,4 @@ def test_stack_results():
     )
     for name, result in Stack.results().items():
         assert name == 'dummy'
-        assert result.keys() == ['VPC']
+        assert list(result.keys()) == ['VPC']
