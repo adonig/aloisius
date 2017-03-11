@@ -19,6 +19,8 @@ setup(
             'jedi',
             'pytest',
             'troposphere',
+            'moto',
+            'mock'
         ]
     },
 )

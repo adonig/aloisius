@@ -95,7 +95,7 @@ class Stack(object):
         while True:
             stack = self._describe_stack()
             if stack and stack.stack_status.endswith('_IN_PROGRESS'):
-                self.sleep(self.sleep_seconds)
+                time.sleep(self.sleep_seconds)
             else:
                 break
 
@@ -122,13 +122,16 @@ class Stack(object):
                 return None
             # Otherwise there should always be a stack.
             assert stack, "Shoot! Where is my stack? :("
+
+            # Raise an exception if the stack operation has failed.
+            if self._failed_stack(stack.stack_status):
+                msg = 'Stack operation {!r} has failed.'
+                raise StackException(msg.format(stack_operation))
+
             # Return if the stack operation is complete.
             if stack.stack_status.endswith('_COMPLETE'):
                 return stack
-            # Raise an exception if the stack operation has failed.
-            if stack.stack_status.endswith('_FAILED'):
-                msg = 'Stack operation {!r} has failed.'
-                raise StackException(msg.format(stack_operation))
+
             # Sleep if the stack operation neither is complete nor has failed.
             time.sleep(self.sleep_seconds)
 
@@ -190,6 +193,9 @@ class Stack(object):
             time.sleep(self.sleep_seconds * (2 ** retries))
             retries += 1
 
+    def _failed_stack(self, status):
+        return status.endswith('_FAILED') or "ROLLBACK" in status
+
 
 class FutureOutputs(Mapping):
     def __init__(self, stack):
@@ -207,6 +213,5 @@ class FutureOutputs(Mapping):
 
     def _get_result(self):
         if self._result is None:
-            self._result = self._stack._executor.submit(
-                lambda: self._stack._future.result()).result()
+            self._result = self._stack._future.result()
         return self._result
