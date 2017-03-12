@@ -11,6 +11,8 @@ python:
   - "3.7-dev" # 3.7 development branch
   - "nightly" # currently points to 3.7-dev
 # command to install dependencies
-install: "pip install -e ."
+install:
+  - pip install .
+  - pip install -r requirements/test.txt
 # command to run tests
-script: python setup.py test
+script: py.test
