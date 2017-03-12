@@ -2,6 +2,16 @@
 aloisius
 ===========
 
+.. image:: https://img.shields.io/pypi/v/aloisius.svg
+    :target: https://pypi.python.org/pypi/aloisius
+
+.. image:: https://travis-ci.org/adonig/aloisius.svg?branch=master
+    :target: https://travis-ci.org/adonig/aloisius
+
+.. image:: https://img.shields.io/pypi/l/aloisius.svg
+    :target: https://opensource.org/licenses/BSD-2-Clause
+
+
 About
 =====
 
