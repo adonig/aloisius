@@ -2,7 +2,6 @@ language: python
 python:
   - "2.6"
   - "2.7"
-  - "3.2"
   - "3.3"
   - "3.4"
   - "3.5"
@@ -12,6 +11,6 @@ python:
   - "3.7-dev" # 3.7 development branch
   - "nightly" # currently points to 3.7-dev
 # command to install dependencies
-install: "pip install -e .[dev]"
+install: "pip install -e ."
 # command to run tests
-script: python -m pytest
+script: python setup.py test

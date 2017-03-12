@@ -103,7 +103,8 @@ class Stack(object):
 
         # Return the stack outputs.
         if stack_operation != 'DELETE' and stack.outputs:
-            return {o['OutputKey']: o['OutputValue'] for o in stack.outputs}
+            return dict([(output['OutputKey'], output['OutputValue'])
+                         for output in stack.outputs])
         else:
             return {}
 
@@ -128,7 +129,7 @@ class Stack(object):
             self._delete()
             return 'DELETE'
         else:
-            raise AssertionError('Invalid state {!r}'.format(target_state))
+            raise AssertionError('Invalid state {0!r}'.format(target_state))
 
     def _wait_until_done(self, stack_operation):
         while True:
@@ -141,7 +142,7 @@ class Stack(object):
 
             # Raise an exception if the stack operation has failed.
             if self._failed_stack(stack.stack_status):
-                msg = 'Stack operation {!r} has failed.'
+                msg = 'Stack operation {0!r} has failed.'
                 raise StackException(msg.format(stack_operation))
 
             # Return if the stack operation is complete.
@@ -160,7 +161,7 @@ class Stack(object):
             error_code = err.response['Error']['Code']
             error_message = err.response['Error']['Message']
             if error_code == 'ValidationError' and \
-               error_message == 'Stack with id {} does not exist'.format(
+               error_message == 'Stack with id {0} does not exist'.format(
                    self._kwargs['StackName']):
                 return None
             else:
@@ -171,15 +172,15 @@ class Stack(object):
         if stack and stack.stack_status != 'ROLLBACK_COMPLETE':
             return False
         else:
-            kwargs = {key: val for key, val in self._kwargs.items()
-                      if key in self.create_stack_params}
+            kwargs = dict([(key, val) for key, val in self._kwargs.items()
+                           if key in self.create_stack_params])
             self._invoke(self._cfn.create_stack, **kwargs)
             return True
 
     def _update(self):
         stack = self._describe_stack()
-        kwargs = {key: val for key, val in self._kwargs.items()
-                  if key in self.update_stack_params}
+        kwargs = dict([(key, val) for key, val in self._kwargs.items()
+                       if key in self.update_stack_params])
         try:
             self._invoke(stack.update, **kwargs)
             return True

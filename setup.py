@@ -10,17 +10,9 @@ setup(
     license="FreeBSD License",
     packages=['aloisius'],
     install_requires=['boto3'],
+    setup_requires=['pytest-runner'],
+    tests_require=['mock', 'moto', 'pytest'],
     extras_require={
-        'dev': [
-            'autopep8',
-            'flake8',
-            'importmagic',
-            'ipython',
-            'jedi',
-            'pytest',
-            'troposphere',
-            'moto',
-            'mock'
-        ]
+        'dev': ['autopep8', 'flake8', 'importmagic', 'ipython', 'jedi']
     },
 )
