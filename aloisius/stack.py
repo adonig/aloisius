@@ -5,7 +5,6 @@
 from collections import Mapping
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import wait
 import multiprocessing
 import time
 
@@ -13,6 +12,7 @@ from boto3.session import Session
 from botocore.exceptions import ClientError
 
 from . import export
+import aloisius
 from .exception import StackException
 
 
@@ -39,55 +39,38 @@ class Stack(object):
 
     _executor = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())
 
-    _futures = {}
-
-    @classmethod
-    def wait_for_all(self):
-        wait(self._futures.values())
-
-    @classmethod
-    def results(self):
-        self.wait_for_all()
-        results = {}
-        for name, future in self._futures.items():
-            results[name] = future.exception() or future.result()
-        return results
-
     def __init__(self, **kwargs):
+        self.kwargs = kwargs
         self.outputs = FutureOutputs(self)
-        self._future = self._executor.submit(self._execute, **kwargs)
-        self._futures[kwargs['StackName']] = self._future
+        self._future = self._executor.submit(self._execute)
+        aloisius.stacks.append(self)
 
     def __del__(self):
         self._future.result()
 
-    def _execute(self, **kwargs):
-        kwargs['TargetState'] = kwargs['TargetState'] or 'present'
+    def _execute(self):
+        self.kwargs['TargetState'] = self.kwargs['TargetState'] or 'present'
 
         # Like `aws-cli cloudformation create-stack` read the template
         # from a local file if template_body starts with 'file://' .
-        if kwargs['TargetState'] == 'present' and 'TemplateBody' in kwargs:
-            template_body = kwargs['TemplateBody']
+        if self.kwargs['TargetState'] == 'present' and 'TemplateBody' in self.kwargs:
+            template_body = self.kwargs['TemplateBody']
             if template_body.startswith(self.file_prefix):
                 filepath = template_body[len(self.file_prefix):]
                 with open(filepath) as fp:
-                    kwargs['TemplateBody'] = fp.read()
+                    self.kwargs['TemplateBody'] = fp.read()
 
         # Transform the parameter dict into a list of Parameter structures.
-        if kwargs['TargetState'] == 'present' and 'Parameters' in kwargs:
-            kwargs['Parameters'] = [{
+        if self.kwargs['TargetState'] == 'present' and 'Parameters' in self.kwargs:
+            self.kwargs['Parameters'] = [{
                 'ParameterKey': key,
                 'ParameterValue': str(val.result() if isinstance(val, Future)
                                       else val),
                 'UsePreviousValue': False  # Always use the current value.
-            } for key, val in kwargs['Parameters'].items()]
-
-        # Store the keyword arguments as member, so we can logically
-        # separate our code without having to pass the kwargs around.
-        self._kwargs = kwargs
+            } for key, val in self.kwargs['Parameters'].items()]
 
         # Create a custom Session in our region of choice.
-        session = Session(region_name=kwargs['RegionName'])
+        session = Session(region_name=self.kwargs['RegionName'])
 
         # Get the CloudFormation service resource.
         self._cfn = session.resource('cloudformation')
@@ -117,7 +100,7 @@ class Stack(object):
                 break
 
     def _establish_target_state(self):
-        target_state = self._kwargs['TargetState']
+        target_state = self.kwargs['TargetState']
         if target_state == 'present':
             if not self._create() and self._update():
                 # The stack does already exist and an update is necessary.
@@ -155,14 +138,14 @@ class Stack(object):
     def _describe_stack(self):
         try:
             stacks = list(self._invoke(self._cfn.stacks.filter,
-                                       StackName=self._kwargs['StackName']))
+                                       StackName=self.kwargs['StackName']))
             return stacks[0]
         except ClientError as err:
             error_code = err.response['Error']['Code']
             error_message = err.response['Error']['Message']
             if error_code == 'ValidationError' and \
                error_message == 'Stack with id {0} does not exist'.format(
-                   self._kwargs['StackName']):
+                   self.kwargs['StackName']):
                 return None
             else:
                 raise err
@@ -172,17 +155,17 @@ class Stack(object):
         if stack and stack.stack_status != 'ROLLBACK_COMPLETE':
             return False
         else:
-            kwargs = dict([(key, val) for key, val in self._kwargs.items()
-                           if key in self.create_stack_params])
-            self._invoke(self._cfn.create_stack, **kwargs)
+            self.kwargs = dict([(key, val) for key, val in self.kwargs.items()
+                                if key in self.create_stack_params])
+            self._invoke(self._cfn.create_stack, **self.kwargs)
             return True
 
     def _update(self):
         stack = self._describe_stack()
-        kwargs = dict([(key, val) for key, val in self._kwargs.items()
-                       if key in self.update_stack_params])
+        self.kwargs = dict([(key, val) for key, val in self.kwargs.items()
+                            if key in self.update_stack_params])
         try:
-            self._invoke(stack.update, **kwargs)
+            self._invoke(stack.update, **self.kwargs)
             return True
         except ClientError as err:
             error_code = err.response['Error']['Code']
@@ -204,6 +187,8 @@ class Stack(object):
             try:
                 return func(*args, **kwargs)
             except ClientError as err:
+                import pdb; pdb.set_trace()
+
                 error_code = err.response['Error']['Code']
                 if error_code != 'Throttling' or retries == self.max_retries:
                     raise err

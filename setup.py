@@ -9,5 +9,5 @@ setup(
     url='https://github.com/adonig/aloisius',
     license="FreeBSD License",
     packages=['aloisius'],
-    install_requires=['boto3'],
+    install_requires=['boto3', 'six'],
 )

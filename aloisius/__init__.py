@@ -11,5 +11,7 @@ def export(defn):
     __all__.append(defn.__name__)
     return defn
 
-
 from .stack import Stack
+from .stack_collection import StackCollection
+
+stacks = StackCollection()
