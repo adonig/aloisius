@@ -1,3 +1,6 @@
+## 0.4.0 (2017-03-27)
+- Add aloisius.stacks to allow iterating the stacks
+
 ## 0.3.1 (2017-02-26)
 - Make FutureOutputs inherit from collections.Mapping
 
