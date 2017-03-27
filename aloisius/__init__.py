@@ -2,7 +2,6 @@
 #
 # See LICENSE file for full license.
 
-
 __all__ = []
 
 
@@ -11,7 +10,7 @@ def export(defn):
     __all__.append(defn.__name__)
     return defn
 
-from .stack import Stack
-from .stack_collection import StackCollection
+
+from .stack_collection import StackCollection  # noqa: E402
 
 stacks = StackCollection()

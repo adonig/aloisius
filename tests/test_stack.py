@@ -9,7 +9,6 @@ from moto import mock_cloudformation
 import pytest
 
 
-
 @mock_cloudformation
 def test_stack_is_created():
     stack = Stack(

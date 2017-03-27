@@ -32,7 +32,8 @@ class Stack(object):
                            'StackPolicyBody', 'StackPolicyURL', 'Tags']
 
     update_stack_params = ['StackName', 'TemplateBody', 'TemplateURL',
-                           'UsePreviousTemplate', 'StackPolicyDuringUpdateBody',
+                           'UsePreviousTemplate',
+                           'StackPolicyDuringUpdateBody',
                            'StackPolicyDuringUpdateURL', 'Parameters',
                            'Capabilities', 'StackPolicyBody', 'StackPolicyURL',
                            'NotificationARNs']
@@ -53,7 +54,8 @@ class Stack(object):
 
         # Like `aws-cli cloudformation create-stack` read the template
         # from a local file if template_body starts with 'file://' .
-        if self.kwargs['TargetState'] == 'present' and 'TemplateBody' in self.kwargs:
+        if self.kwargs['TargetState'] == 'present' \
+           and 'TemplateBody' in self.kwargs:
             template_body = self.kwargs['TemplateBody']
             if template_body.startswith(self.file_prefix):
                 filepath = template_body[len(self.file_prefix):]
@@ -61,7 +63,8 @@ class Stack(object):
                     self.kwargs['TemplateBody'] = fp.read()
 
         # Transform the parameter dict into a list of Parameter structures.
-        if self.kwargs['TargetState'] == 'present' and 'Parameters' in self.kwargs:
+        if self.kwargs['TargetState'] == 'present' \
+           and 'Parameters' in self.kwargs:
             self.kwargs['Parameters'] = [{
                 'ParameterKey': key,
                 'ParameterValue': str(val.result() if isinstance(val, Future)
@@ -187,8 +190,6 @@ class Stack(object):
             try:
                 return func(*args, **kwargs)
             except ClientError as err:
-                import pdb; pdb.set_trace()
-
                 error_code = err.response['Error']['Code']
                 if error_code != 'Throttling' or retries == self.max_retries:
                     raise err
@@ -200,6 +201,7 @@ class Stack(object):
 
 
 class FutureOutputs(Mapping):
+
     def __init__(self, stack):
         self._stack = stack
         self._result = None
