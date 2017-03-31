@@ -12,5 +12,8 @@ def export(defn):
 
 
 from .stack_collection import StackCollection  # noqa: E402
+from .stack import Stack  # noqa: E402,F401
+from boto3.session import Session # noqa: E402
 
 stacks = StackCollection()
+session = Session()

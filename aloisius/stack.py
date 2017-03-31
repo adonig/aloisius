@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
 import time
 
-from boto3.session import Session
 from botocore.exceptions import ClientError
 
 from . import export
@@ -72,20 +71,15 @@ class Stack(object):
                 'UsePreviousValue': False  # Always use the current value.
             } for key, val in self.kwargs['Parameters'].items()]
 
-        # Create a custom Session in our region of choice.
-        session = Session(region_name=self.kwargs['RegionName'])
-
         # Get the CloudFormation service resource.
-        self._cfn = session.resource('cloudformation')
+        self._cfn = aloisius.session.resource('cloudformation', region_name=self.kwargs['RegionName'])
 
         # Wait until no stack operation is in progress.
         self._wait_until_ready()
 
-        # Execute the stack operation necessary to establish the target state.
-        stack_operation = self._establish_target_state()
+        stack_operation = self._converge()
 
-        # Wait until the stack operation is complete or has failed.
-        stack = self._wait_until_done(stack_operation)
+        stack = self._describe_stack()
 
         # Return the stack outputs.
         if stack_operation != 'DELETE' and stack.outputs:
@@ -94,6 +88,32 @@ class Stack(object):
         else:
             return {}
 
+    def _converge(self):
+        target_state = self.kwargs['TargetState']
+        if target_state == 'present':
+            if self._create():
+                return 'CREATE'
+            else:
+                self._update()
+                return 'UPDATE'
+        elif target_state == 'absent':
+            self._delete()
+            return 'DELETE'
+        else:
+            raise AssertionError('Invalid state {0!r}'.format(target_state))
+
+    def _wait_for_operation(self, operation):
+        try:
+            self._cfn.meta.client.get_waiter(
+                'stack_{0}_complete'.format(operation)
+            ).wait(StackName=self.kwargs['StackName'])
+        except Exception as err:
+            if 'Waiter encountered a terminal failure state' in err.message:
+                msg = 'Stack operation {0!r} has failed.'
+                raise StackException(msg.format(operation))
+            else:
+                raise err
+
     def _wait_until_ready(self):
         while True:
             stack = self._describe_stack()
@@ -101,42 +121,6 @@ class Stack(object):
                 time.sleep(self.sleep_seconds)
             else:
                 break
-
-    def _establish_target_state(self):
-        target_state = self.kwargs['TargetState']
-        if target_state == 'present':
-            if not self._create() and self._update():
-                # The stack does already exist and an update is necessary.
-                return 'UPDATE'
-            else:
-                # The stack does not exist or no update is necessary.
-                return 'CREATE'
-        elif target_state == 'absent':
-            self._delete()
-            return 'DELETE'
-        else:
-            raise AssertionError('Invalid state {0!r}'.format(target_state))
-
-    def _wait_until_done(self, stack_operation):
-        while True:
-            stack = self._describe_stack()
-            # The delete operation is complete when there's no stack.
-            if not stack and stack_operation == 'DELETE':
-                return None
-            # Otherwise there should always be a stack.
-            assert stack, "Shoot! Where is my stack? :("
-
-            # Raise an exception if the stack operation has failed.
-            if self._failed_stack(stack.stack_status):
-                msg = 'Stack operation {0!r} has failed.'
-                raise StackException(msg.format(stack_operation))
-
-            # Return if the stack operation is complete.
-            if stack.stack_status.endswith('_COMPLETE'):
-                return stack
-
-            # Sleep if the stack operation neither is complete nor has failed.
-            time.sleep(self.sleep_seconds)
 
     def _describe_stack(self):
         try:
@@ -154,28 +138,33 @@ class Stack(object):
                 raise err
 
     def _create(self):
-        stack = self._describe_stack()
-        if stack and stack.stack_status != 'ROLLBACK_COMPLETE':
-            return False
-        else:
-            self.kwargs = dict([(key, val) for key, val in self.kwargs.items()
-                                if key in self.create_stack_params])
-            self._invoke(self._cfn.create_stack, **self.kwargs)
+        try:
+            kwargs = dict([(key, val) for key, val in self.kwargs.items()
+                           if key in self.create_stack_params])
+            self._invoke(self._cfn.create_stack, **kwargs)
+            self._wait_for_operation('create')
             return True
+        except ClientError as err:
+            error_code = err.response['Error']['Code']
+            if 'AlreadyExistsException' in error_code:
+                return False
+            else:
+                raise err
 
     def _update(self):
-        stack = self._describe_stack()
-        self.kwargs = dict([(key, val) for key, val in self.kwargs.items()
-                            if key in self.update_stack_params])
         try:
-            self._invoke(stack.update, **self.kwargs)
+            stack = self._describe_stack()
+            kwargs = dict([(key, val) for key, val in self.kwargs.items()
+                           if key in self.update_stack_params])
+            self._invoke(stack.update, **kwargs)
+            self._wait_for_operation('update')
             return True
         except ClientError as err:
             error_code = err.response['Error']['Code']
             error_message = err.response['Error']['Message']
             if error_code == 'ValidationError' and \
                error_message == 'No updates are to be performed.':
-                return False
+                return True
             else:
                 raise err
 
@@ -183,6 +172,7 @@ class Stack(object):
         stack = self._describe_stack()
         if stack:
             self._invoke(stack.delete)
+            self._wait_for_operation('delete')
 
     def _invoke(self, func, *args, **kwargs):
         retries = 0

@@ -1,12 +1,10 @@
 import json
 import re
 
-from aloisius import Stack, StackException
-from .utils import dummy_template
-
-import mock
 from moto import mock_cloudformation
-import pytest
+
+from .utils import dummy_template
+from aloisius import Stack
 
 
 @mock_cloudformation
@@ -21,32 +19,27 @@ def test_stack_is_created():
 
 
 @mock_cloudformation
-def test_stack_create_failed_raises_exception(monkeypatch):
-    def mock_return(_):
-        return mock.Mock(stack_status='CREATE_FAILED')
-    monkeypatch.setattr(Stack, '_describe_stack', mock_return)
+def test_stack_is_updated_when_already_exists(monkeypatch, mocker):
+    stack = Stack(
+        StackName='dummy',
+        TargetState='present',
+        RegionName='eu-west-1',
+        TemplateBody=json.dumps(dummy_template)
+    )
 
-    with pytest.raises(StackException):
-        stack = Stack(
-            StackName='dummy_failed',
-            TargetState='present',
-            RegionName='eu-west-1',
-            TemplateBody=json.dumps(dummy_template)
-        )
-        stack.outputs['VPC']  # Wait for result
+    assert stack.outputs
 
+    monkeypatch.setattr(Stack, '_create', lambda x: False)
 
-@mock_cloudformation
-def test_stack_rollback(monkeypatch):
-    def mock_return(_):
-        return mock.Mock(stack_status='ROLLBACK_COMPLETE')
-    monkeypatch.setattr(Stack, '_describe_stack', mock_return)
+    update_stack = Stack(
+        StackName='dummy',
+        TargetState='present',
+        RegionName='eu-west-1',
+        TemplateBody=json.dumps(dummy_template)
+    )
 
-    with pytest.raises(StackException):
-        stack = Stack(
-            StackName='dummy_failed',
-            TargetState='present',
-            RegionName='eu-west-1',
-            TemplateBody=json.dumps(dummy_template)
-        )
-        stack.outputs['VPC']  # Wait for result
+    spy = mocker.spy(update_stack, '_update')
+
+    assert re.match("vpc-[a-z0-9]+", update_stack.outputs['VPC'])
+
+    assert spy.call_count == 1
