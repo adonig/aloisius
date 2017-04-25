@@ -72,7 +72,10 @@ class Stack(object):
             } for key, val in self.kwargs['Parameters'].items()]
 
         # Get the CloudFormation service resource.
-        self._cfn = aloisius.session.resource('cloudformation', region_name=self.kwargs['RegionName'])
+        self._cfn = aloisius.session.resource(
+            'cloudformation',
+            region_name=self.kwargs['RegionName']
+        )
 
         # Wait until no stack operation is in progress.
         self._wait_until_ready()

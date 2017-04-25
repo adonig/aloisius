@@ -48,11 +48,14 @@ A simple example creating a VPC containing an RDS could look like this::
    #!/usr/bin/env python
 
    from aloisius import Stack
+   import boto3
 
    # I keep my troposphere templates as modules in a package.
    from templates.vpc import template as template_vpc
    from templates.rds import template as template_rds
 
+   # You can set your own boto3 session and override the default. E.g:
+   # aloisius.session = boto3.session.Session(profile_name: "PROFILE")
 
    # I normally put some constants and helper functions here.
    app_name = 'myapp'
@@ -79,10 +82,25 @@ A simple example creating a VPC containing an RDS could look like this::
        },
    )
 
+   # You can wait for all of the stacks to finish
+
+   aloisius.stacks.wait()
+
+   # Or you can check if they were all applied successfuly
+
+   if not aloisius.stacks.success():
+     exit(1)
+
+   # Or you can iterate over their outputs
+
+   for stack in aloisius.stacks:
+     for key, value in stack.outputs.items():
+       print "{0}={1}".format(key, value)
+
+
 Why you shouldn't use aloisius
 ==============================
 
-- It's not tested. I simply use it myself. There are probably many bugs.
 - There's not much documentation (but there are comments in the code).
 
 Why you should use aloisius
